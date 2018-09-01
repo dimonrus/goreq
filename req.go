@@ -7,6 +7,8 @@ import (
 	"fmt"
 	"bytes"
 	"strings"
+	"log"
+	"os"
 )
 
 //Default request timeout
@@ -125,6 +127,10 @@ func Ensure(request HttpRequest) (*http.Response, []byte, error) {
 	if request.ResponseErrorStrategy == nil {
 		request.ResponseErrorStrategy = responseError
 	}
+	//Check retry strategy
+	if request.Logger == nil {
+		request.Logger = log.New(os.Stdout, "REQUEST: ", log.Ldate|log.Ltime)
+	}
 	//Make new request
 	route := request.Host + request.Url
 	req, err := http.NewRequest(request.Method, route, bytes.NewBuffer(request.Body))
@@ -137,12 +143,15 @@ func Ensure(request HttpRequest) (*http.Response, []byte, error) {
 		req.Header.Add(k, v)
 		headersLog += fmt.Sprintf("-H '%s: %s' ", k, v)
 	}
+	if request.Body != nil {
+		headersLog += fmt.Sprintf("-d '%s'", request.Body)
+	}
 	//Calculate request time
 	var delta int64
 	var response *http.Response
 
 	//Log request as CURL
-	logCurl := fmt.Sprintf("curl -X %s '%s' %s -d '%s'", request.Method, route, headersLog, request.Body)
+	logCurl := fmt.Sprintf("curl -X %s '%s' %s", request.Method, route, headersLog)
 
 	//Loop for retry count
 	for i := uint(0); i <= request.RetryCount; i++ {
@@ -156,9 +165,9 @@ func Ensure(request HttpRequest) (*http.Response, []byte, error) {
 		delta = (endTime - startTime) / int64(time.Millisecond)
 		if response == nil || err != nil {
 			//If no response than log
-			request.Logger.Print(logCurl + "\n FAILED!!!")
+			request.Logger.Print("\x1b[31;1m" + logCurl + "\n FAILED!!!\x1b[0m")
 			if i >= request.RetryCount {
-				return nil, nil, &Error{Message: fmt.Sprintf("Http Request (%s) failed. Service: %s", route, request.Label), HttpCode: http.StatusInternalServerError}
+				return nil, nil, &Error{Message: fmt.Sprintf("Http Request (%s) failed. Service: %s", request.Url, request.Label), HttpCode: http.StatusInternalServerError}
 			}
 		} else {
 			//Check if can retry response
