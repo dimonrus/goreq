@@ -5,6 +5,7 @@ import (
 	"testing"
 	"time"
 	"fmt"
+	"sync"
 )
 
 //https://jsonplaceholder.typicode.com/posts
@@ -38,10 +39,41 @@ func GetPosts() (posts []Post, err error) {
 	return
 }
 
+func GetPost(id int) (post *Post, err error)  {
+	service := Jsonplaceholder
+	service.Method = "GET"
+	service.Url = fmt.Sprintf("/posts/%v", id)
+	_, bytes, err := Ensure(service)
+	if err != nil {
+		return nil, err
+	}
+	err = json.Unmarshal(bytes, &post)
+	if err != nil {
+		return nil, nil
+	}
+	return
+}
+
 func TestEnsure(t *testing.T) {
 	posts, err := GetPosts()
 	if err != nil {
 		t.Error(err)
 	}
 	fmt.Print("Post lenght: ", len(posts), "\n")
+
+	postChan := make(chan Post, 10)
+	wg := sync.WaitGroup{}
+	wg.Add(10)
+	for i := 0; i < 10; i++ {
+		go func(index int) {
+			post, err := GetPost(index)
+			if err != nil {
+				return
+			}
+			postChan <- *post
+			wg.Done()
+		}(i)
+	}
+	wg.Wait()
+	fmt.Print(len(postChan))
 }
