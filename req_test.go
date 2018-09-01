@@ -3,14 +3,17 @@ package goreq
 import (
 	"encoding/json"
 	"testing"
+	"time"
 	"fmt"
 )
 
 //https://jsonplaceholder.typicode.com/posts
 var Jsonplaceholder = HttpRequest{
-	Host:    "https://jsonplaceholder.typicode.comx",
-	Headers: map[string]string{"Content-Type": "application/json"},
-	Label: "Jsonplaceholder",
+	Host:         "https://jsonplaceholder.typicode.com",
+	Headers:      map[string]string{"Content-Type": "application/json"},
+	Label:        "Jsonplaceholder",
+	RetryCount:   2,
+	RetryTimeout: time.Duration(time.Second),
 }
 
 type Post struct {
@@ -23,7 +26,7 @@ type Post struct {
 func GetPosts() (posts []Post, err error) {
 	service := Jsonplaceholder
 	service.Method = "GET"
-	service.Url = "/post"
+	service.Url = "/posts"
 	_, bytes, err := Ensure(service)
 	if err != nil {
 		return nil, err
@@ -40,5 +43,5 @@ func TestEnsure(t *testing.T) {
 	if err != nil {
 		t.Error(err)
 	}
-	fmt.Print(posts)
+	fmt.Print("Post lenght: ", len(posts), "\n")
 }

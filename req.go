@@ -169,6 +169,9 @@ func Ensure(request HttpRequest) (*http.Response, []byte, error) {
 			if i >= request.RetryCount {
 				return nil, nil, &Error{Message: fmt.Sprintf("Http Request (%s) failed. Service: %s", request.Url, request.Label), HttpCode: http.StatusInternalServerError}
 			}
+			if request.RetryTimeout.Nanoseconds() > 0 {
+				time.Sleep(request.RetryTimeout)
+			}
 		} else {
 			//Check if can retry response
 			if canContinueRetry(response) {
