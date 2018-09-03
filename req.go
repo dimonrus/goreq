@@ -204,7 +204,7 @@ func Ensure(request HttpRequest) (*http.Response, []byte, error) {
 		logStatus = "\x1b[31;1m" + logStatus + "\x1b[0m"
 		logBody = "\x1b[31;1m" + logBody + "\x1b[0m"
 	} else {
-		logStatus = "\x1b[31;1m" + logStatus + "\x1b[0m"
+		logStatus = "\x1b[32;1m" + logStatus + "\x1b[0m"
 		logBody = "\x1b[32;1m" + logBody + "\x1b[0m"
 	}
 	request.Logger.Print("\n    ", "\x1b[34;1m"+logCurl+"\x1b[0m", "\n    ", logStatus, "\n    ", logBody)
