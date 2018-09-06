@@ -11,7 +11,7 @@ import (
 //https://jsonplaceholder.typicode.com/posts
 var Jsonplaceholder = HttpRequest{
 	Host:         "https://jsonplaceholder.typicode.com",
-	Headers:      map[string]string{"Content-Type": "application/json"},
+	Headers:      map[string][]string{"Content-Type": {"application/json"}},
 	Label:        "Jsonplaceholder",
 	RetryCount:   2,
 	RetryTimeout: time.Duration(time.Second),
@@ -39,7 +39,7 @@ func GetPosts() (posts []Post, err error) {
 	return
 }
 
-func GetPost(id int) (post *Post, err error)  {
+func GetPost(id int) (post *Post, err error) {
 	service := Jsonplaceholder
 	service.Method = "GET"
 	service.Url = fmt.Sprintf("/posts/%v", id)

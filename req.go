@@ -35,7 +35,7 @@ type HttpRequest struct {
 	//Remote endpoint
 	Url string
 	//Http headers
-	Headers map[string]string
+	Headers http.Header
 	//Http body
 	Body []byte
 	//Count of retry attempts
@@ -48,6 +48,9 @@ type HttpRequest struct {
 	ResponseErrorStrategy func(response *http.Response, url string, service string) error
 	//Logger. Implements RequestLogger
 	Logger Logger
+	//How many body bytes must be logged
+	//0 - all body wil be logged
+	LogBodySize int
 }
 
 //Validate request
@@ -109,12 +112,26 @@ func responseError(response *http.Response, route string, service string) (err e
 	return err
 }
 
-//Ensure request
-func Ensure(request HttpRequest) (*http.Response, []byte, error) {
-	//Validate request
-	if err := request.validate(); err != nil {
-		return nil, nil, err
+// Build curl for logging
+func buildCURL(r *http.Request, request *HttpRequest) string {
+	//Collect headers
+	var headersLog string
+	for k, v := range request.Headers {
+		headersLog += fmt.Sprintf("-H '%s: %s' ", k, strings.Join(v, ","))
 	}
+	// log body
+	if request.Body != nil {
+		if request.LogBodySize == 0 || len(request.Body) < request.LogBodySize {
+			headersLog += fmt.Sprintf("-d '%s'", request.Body)
+		} else {
+			headersLog += fmt.Sprintf("-d '%s...'", request.Body[:request.LogBodySize-1])
+		}
+	}
+
+	return fmt.Sprintf("curl -X %s '%s' %s", request.Method, request.Host+request.Url, headersLog)
+}
+
+func initDefault(request *HttpRequest) {
 	//Check http client
 	if request.Client == nil {
 		request.Client = &http.Client{Timeout: time.Second * DefaultTimeout}
@@ -123,35 +140,41 @@ func Ensure(request HttpRequest) (*http.Response, []byte, error) {
 	if request.RetryStrategy == nil {
 		request.RetryStrategy = canContinueRetry
 	}
-	//Check retry strategy
+	//Check error response strategy strategy
 	if request.ResponseErrorStrategy == nil {
 		request.ResponseErrorStrategy = responseError
 	}
-	//Check retry strategy
+	//Check logger
 	if request.Logger == nil {
 		request.Logger = log.New(os.Stdout, "REQUEST: ", log.Ldate|log.Ltime)
 	}
+}
+
+//Ensure request
+func Ensure(request HttpRequest) (*http.Response, []byte, error) {
+	//Validate request
+	if err := request.validate(); err != nil {
+		return nil, nil, err
+	}
+
+	//Set default options
+	initDefault(&request)
+
 	//Make new request
-	route := request.Host + request.Url
-	req, err := http.NewRequest(request.Method, route, bytes.NewBuffer(request.Body))
+	req, err := http.NewRequest(request.Method, request.Host+request.Url, bytes.NewBuffer(request.Body))
 	if err != nil {
 		return nil, nil, &Error{Message: fmt.Sprintf("Http Request build error: %s. Service: %s", err, request.Label), HttpCode: http.StatusInternalServerError}
 	}
-	//Collect headers
-	var headersLog string
-	for k, v := range request.Headers {
-		req.Header.Add(k, v)
-		headersLog += fmt.Sprintf("-H '%s: %s' ", k, v)
-	}
-	if request.Body != nil {
-		headersLog += fmt.Sprintf("-d '%s'", request.Body)
-	}
-	//Calculate request time
-	var delta int64
-	var response *http.Response
+	req.Header = request.Headers
 
 	//Log request as CURL
-	logCurl := fmt.Sprintf("curl -X %s '%s' %s", request.Method, route, headersLog)
+	logCurl := buildCURL(req, &request)
+
+	//Calculate request time
+	var delta int64
+
+	// Response
+	var response *http.Response
 
 	//Loop for retry count
 	for i := uint(0); i <= request.RetryCount; i++ {
@@ -164,7 +187,7 @@ func Ensure(request HttpRequest) (*http.Response, []byte, error) {
 		//Calc delta
 		delta = (endTime - startTime) / int64(time.Millisecond)
 		if response == nil || err != nil {
-			//If no response than log
+			//if no response than log
 			request.Logger.Print("\x1b[31;1m" + logCurl + "\n FAILED!!!\x1b[0m")
 			if i >= request.RetryCount {
 				return nil, nil, &Error{Message: fmt.Sprintf("Http Request (%s) failed. Service: %s", request.Url, request.Label), HttpCode: http.StatusInternalServerError}
@@ -193,14 +216,29 @@ func Ensure(request HttpRequest) (*http.Response, []byte, error) {
 	//Read response body
 	bodyBytes, err := ioutil.ReadAll(response.Body)
 	if err != nil {
-		return nil, nil, &Error{Message: fmt.Sprintf("Http Response (%s) read error: %s. Service: %s", route, err.Error(), request.Label), HttpCode: http.StatusInternalServerError}
+		return nil, nil, &Error{
+			Message: fmt.Sprintf(
+				"Http Response (%s) read error: %s. Service: %s",
+				request.Host+request.Url,
+				err.Error(),
+				request.Label),
+			HttpCode: http.StatusInternalServerError,
+		}
 	}
 
 	//Log response status
 	logStatus := fmt.Sprintf("HTTP Status [%v] in: %v ms", response.StatusCode, delta)
+
 	//Log response body
-	logBody := fmt.Sprintf("Body: %s", strings.Join(strings.Fields(string(bodyBytes)), " "))
-	if response.StatusCode > 300 {
+	var logBody string
+	if request.LogBodySize == 0 || len(bodyBytes) < request.LogBodySize {
+		logBody = fmt.Sprintf("Body: %s", strings.Join(strings.Fields(string(bodyBytes)), " "))
+	} else {
+		logBody = fmt.Sprintf("Body: %s...", strings.Join(strings.Fields(string(bodyBytes)), " ")[:request.LogBodySize-1])
+	}
+
+	//If response status code more then 300 shows in red
+	if response.StatusCode >= 300 {
 		logStatus = "\x1b[31;1m" + logStatus + "\x1b[0m"
 		logBody = "\x1b[31;1m" + logBody + "\x1b[0m"
 	} else {
