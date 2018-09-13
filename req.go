@@ -22,7 +22,7 @@ type Logger interface {
 	Printf(format string, v ...interface{})
 }
 
-//Each request performs from struct bellow
+//Each request performs via struct bellow
 type HttpRequest struct {
 	//Host service label. For messages
 	Label string
@@ -49,7 +49,7 @@ type HttpRequest struct {
 	//Logger. Implements RequestLogger
 	Logger Logger
 	//How many body bytes must be logged
-	//0 - all body wil be logged
+	//0 - all body will be logged
 	LogBodySize int
 }
 
@@ -70,7 +70,7 @@ func (r *HttpRequest) validate() error {
 }
 
 //Retry strategy
-//if response code bellow to 500, 502, 503, 504 than repeat request
+//if response code belongs to 500, 502, 503, 504 than repeat request
 func canContinueRetry(response *http.Response) bool {
 	switch response.StatusCode {
 	case http.StatusInternalServerError:
