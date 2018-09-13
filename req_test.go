@@ -13,8 +13,14 @@ var Jsonplaceholder = HttpRequest{
 	Host:         "https://jsonplaceholder.typicode.com",
 	Headers:      map[string][]string{"Content-Type": {"application/json"}},
 	Label:        "Jsonplaceholder",
+}
+
+var BadJsonplaceholder = HttpRequest{
+	Host:         "https://jsdsf.wdsf",
+	Headers:      map[string][]string{"Content-Type": {"application/json"}},
+	Label:        "BadJsonplaceholder",
 	RetryCount:   2,
-	RetryTimeout: time.Duration(time.Second),
+	RetryTimeout: time.Duration(time.Millisecond*100),
 }
 
 type Post struct {
@@ -22,6 +28,21 @@ type Post struct {
 	UserId int    `json:"userId"`
 	Title  string `json:"title"`
 	Body   string `json:"body"`
+}
+
+func GeBadPosts() (posts []Post, err error) {
+	service := BadJsonplaceholder
+	service.Method = "GET"
+	service.Url = "/posts"
+	_, bytes, err := Ensure(service)
+	if err != nil {
+		return nil, err
+	}
+	err = json.Unmarshal(bytes, &posts)
+	if err != nil {
+		return nil, nil
+	}
+	return
 }
 
 func GetPosts() (posts []Post, err error) {
@@ -60,11 +81,12 @@ func TestEnsure(t *testing.T) {
 		t.Error(err)
 	}
 	fmt.Print("Post lenght: ", len(posts), "\n")
+	countOfPosts := 10
 
-	postChan := make(chan Post, 10)
+	postChan := make(chan Post, countOfPosts)
 	wg := sync.WaitGroup{}
-	wg.Add(10)
-	for i := 0; i < 10; i++ {
+	wg.Add(countOfPosts)
+	for i := 0; i < countOfPosts; i++ {
 		go func(index int) {
 			post, err := GetPost(index)
 			if err != nil {
@@ -76,4 +98,9 @@ func TestEnsure(t *testing.T) {
 	}
 	wg.Wait()
 	fmt.Print(len(postChan))
+
+	posts, err = GeBadPosts()
+	if err == nil {
+		t.Error("Must be an error")
+	}
 }
