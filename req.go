@@ -301,15 +301,17 @@ func (r HttpRequest) EnsureJSON(method string, url string, header http.Header, b
 	}
 	
 	// Unmarshal response
-	err = json.Unmarshal(data, dto)
-	if err != nil {
-		return nil, &Error{
-			Message: fmt.Sprintf(
-				"Http Response (%s) unmarshal error: %s. Service: %s",
-				req.Host+req.Url,
-				err.Error(),
-				req.Label),
-			HttpCode: http.StatusInternalServerError,
+	if dto != nil {
+		err = json.Unmarshal(data, dto)
+		if err != nil {
+			return nil, &Error{
+				Message: fmt.Sprintf(
+					"Http Response (%s) unmarshal error: %s. Service: %s",
+					req.Host+req.Url,
+					err.Error(),
+					req.Label),
+				HttpCode: http.StatusInternalServerError,
+			}
 		}
 	}
 
