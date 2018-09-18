@@ -13,6 +13,6 @@ type Error struct {
 }
 
 //Error implements error interface method
-func (r *Error) Error() string {
+func (r Error) Error() string {
 	return r.Message
 }
