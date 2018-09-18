@@ -9,6 +9,7 @@ import (
 	"strings"
 	"log"
 	"os"
+	"encoding/json"
 )
 
 //Default request timeout
@@ -248,4 +249,69 @@ func Ensure(request HttpRequest) (*http.Response, []byte, error) {
 	request.Logger.Print("\n    ", "\x1b[34;1m"+logCurl+"\x1b[0m", "\n    ", logStatus, "\n    ", logBody)
 
 	return response, bodyBytes, err
+}
+
+// Ensure JSON request
+func (r HttpRequest) EnsureJSON(method string, url string, header http.Header, body interface{}, dto interface{}) (*http.Response, error) {
+	// Copy request
+	req := r
+
+	// Set method
+	req.Method = method
+
+	// Set Url
+	req.Url = url
+
+	//Copy headers
+	headers := make(http.Header)
+	for key, value := range r.Headers {
+		headers.Add(key, strings.Join(value, ","))
+	}
+	if header != nil {
+		for key, value := range header {
+			headers.Add(key, strings.Join(value, ","))
+		}
+	}
+	req.Headers = headers
+
+	//Reset body
+	req.Body = nil
+
+	//Set body
+	if body != nil {
+		//Marshal body
+		b, err := json.Marshal(body)
+		if err != nil {
+			return nil, &Error{
+				Message: fmt.Sprintf(
+					"Http Request (%s) marshal error: %s. Service: %s",
+					req.Host+req.Url,
+					err.Error(),
+					req.Label),
+				HttpCode: http.StatusInternalServerError,
+			}
+		}
+		req.Body = b
+	}
+
+	// Ensure
+	response, data, err := Ensure(req)
+	if err != nil {
+		return response, err
+	}
+	
+	// Unmarshal response
+	err = json.Unmarshal(data, dto)
+	if err != nil {
+		return nil, &Error{
+			Message: fmt.Sprintf(
+				"Http Response (%s) unmarshal error: %s. Service: %s",
+				req.Host+req.Url,
+				err.Error(),
+				req.Label),
+			HttpCode: http.StatusInternalServerError,
+		}
+	}
+
+	return response, nil
 }
