@@ -161,12 +161,12 @@ func TestGroupGetPost(t *testing.T) {
 	wg.Add(countOfPosts)
 	for i := 0; i < countOfPosts; i++ {
 		go func(index int) {
+			defer wg.Done()
 			post, err := GetPost(index)
 			if err != nil {
 				return
 			}
 			postChan <- *post
-			wg.Done()
 		}(i)
 	}
 	wg.Wait()

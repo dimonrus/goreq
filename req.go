@@ -89,25 +89,8 @@ func canContinueRetry(response *http.Response) bool {
 
 //Response error returns
 func responseError(response *http.Response, route string, service string) (err error) {
-	switch response.StatusCode {
-	case http.StatusBadRequest:
-		err = &Error{Message: fmt.Sprintf("Bad request: %s. Service: %s", route, service), HttpCode: response.StatusCode}
-	case http.StatusUnauthorized:
-		err = &Error{Message: fmt.Sprintf("Unauthorized: %s. Service: %s", route, service), HttpCode: response.StatusCode}
-	case http.StatusForbidden:
-		err = &Error{Message: fmt.Sprintf("Forbidden: %s. Service: %s", route, service), HttpCode: response.StatusCode}
-	case http.StatusNotFound:
-		err = &Error{Message: fmt.Sprintf("Not found: %s. Service: %s", route, service), HttpCode: response.StatusCode}
-	case http.StatusConflict:
-		err = &Error{Message: fmt.Sprintf("Conflict: %s. Service: %s", route, service), HttpCode: response.StatusCode}
-	case http.StatusInternalServerError:
-		err = &Error{Message: fmt.Sprintf("Internal server error: %s. Service: %s", route, service), HttpCode: response.StatusCode}
-	case http.StatusBadGateway:
-		err = &Error{Message: fmt.Sprintf("Bad gateway: %s. Service: %s", route, service), HttpCode: response.StatusCode}
-	case http.StatusServiceUnavailable:
-		err = &Error{Message: fmt.Sprintf("Service unavailable: %s. Service: %s", route, service), HttpCode: response.StatusCode}
-	case http.StatusGatewayTimeout:
-		err = &Error{Message: fmt.Sprintf("Gateway timeout: %s. Service: %s", route, service), HttpCode: response.StatusCode}
+	if response.StatusCode >= http.StatusBadRequest {
+		err = &Error{Message: fmt.Sprintf("%s: %s. Service: %s", http.StatusText(response.StatusCode), route, service), HttpCode: response.StatusCode}
 	}
 
 	return err
@@ -232,6 +215,10 @@ func Ensure(request HttpRequest) (*http.Response, []byte, error) {
 				break
 			}
 		}
+	}
+
+	if request.ResponseErrorStrategy != nil {
+		err = request.ResponseErrorStrategy(response, request.Url, request.Label)
 	}
 
 	return response, bodyBytes, err
