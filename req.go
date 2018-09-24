@@ -145,7 +145,7 @@ func Ensure(request HttpRequest) (*http.Response, []byte, error) {
 	initDefault(&request)
 
 	//Make new request
-	req, err := http.NewRequest(request.Method, request.Host+request.Url, bytes.NewBuffer(request.Body))
+	req, err := http.NewRequest(request.Method, request.Host+request.Url, nil)
 	if err != nil {
 		return nil, nil, &Error{Message: fmt.Sprintf("Http Request build error: %s. Service: %s", err, request.Label), HttpCode: http.StatusInternalServerError}
 	}
@@ -165,6 +165,9 @@ func Ensure(request HttpRequest) (*http.Response, []byte, error) {
 
 	//Loop for retry count
 	for i := uint(0); i <= request.RetryCount; i++ {
+		//Set body
+		buffer := bytes.NewBuffer(request.Body)
+		req.Body = ioutil.NopCloser(buffer)
 		//Get start time
 		startTime := time.Now().UnixNano()
 		//Perform request
@@ -176,7 +179,7 @@ func Ensure(request HttpRequest) (*http.Response, []byte, error) {
 		//If server does not respond
 		if err != nil {
 			//if no response than log
-			request.Logger.Printf("\x1b[31;1m" + logCurl + "\n %s \n FAILED!!!\x1b[0m", err)
+			request.Logger.Printf("\x1b[31;1m"+logCurl+"\n %s \n FAILED!!!\x1b[0m", err)
 			if i >= request.RetryCount {
 				return nil, nil, &Error{Message: fmt.Sprintf("Http Request (%s) failed. Service: %s, Error: %s", request.Url, request.Label, err), HttpCode: http.StatusInternalServerError}
 			}
@@ -204,8 +207,6 @@ func Ensure(request HttpRequest) (*http.Response, []byte, error) {
 
 			//Check if can retry response
 			if canContinueRetry(response) {
-				buffer := bytes.NewBuffer(request.Body)
-				req.Body = ioutil.NopCloser(buffer)
 				//Sleep before next round
 				if request.RetryTimeout.Nanoseconds() > 0 {
 					time.Sleep(request.RetryTimeout)
