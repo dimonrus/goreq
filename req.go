@@ -235,7 +235,7 @@ func logRequest(request *HttpRequest, responseStatus int, responseBody *[]byte, 
 	if request.LogBodySize == 0 || len(*responseBody) < request.LogBodySize {
 		logBody = fmt.Sprintf("Body: %s", strings.Join(strings.Fields(string(*responseBody)), " "))
 	} else {
-		logBody = fmt.Sprintf("Body: %s...", strings.Join(strings.Fields(string(*responseBody)), " ")[:request.LogBodySize-1])
+		logBody = fmt.Sprintf("Body: %s...", strings.Join(strings.Fields(string(*responseBody)[:request.LogBodySize-1]), " "))
 	}
 
 	//If response status code more then 300 shows in red
