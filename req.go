@@ -1,15 +1,15 @@
 package goreq
 
 import (
-	"time"
-	"io/ioutil"
-	"net/http"
-	"fmt"
 	"bytes"
-	"strings"
-	"log"
-	"os"
 	"encoding/json"
+	"fmt"
+	"io/ioutil"
+	"log"
+	"net/http"
+	"os"
+	"strings"
+	"time"
 )
 
 //Default request timeout
@@ -97,7 +97,7 @@ func responseError(response *http.Response, route string, service string) (err e
 }
 
 // Build curl for logging
-func buildCURL(r *http.Request, request *HttpRequest) string {
+func BuildCURL(request *HttpRequest) string {
 	//Collect headers
 	var headersLog string
 	for k, v := range request.Headers {
@@ -152,7 +152,7 @@ func Ensure(request HttpRequest) (*http.Response, []byte, error) {
 	req.Header = request.Headers
 
 	//Log request as CURL
-	logCurl := buildCURL(req, &request)
+	logCurl := BuildCURL(&request)
 
 	//Calculate request time
 	var delta int64
