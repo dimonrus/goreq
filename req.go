@@ -295,6 +295,9 @@ func (r HttpRequest) EnsureJSON(method string, url string, header http.Header, b
 	// Ensure
 	response, data, err := Ensure(req)
 	if err != nil {
+		if response != nil {
+			response.Body = ioutil.NopCloser(bytes.NewBuffer(data))
+		}
 		return response, err
 	}
 
