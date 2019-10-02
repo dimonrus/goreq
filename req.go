@@ -206,7 +206,7 @@ func Ensure(request HttpRequest) (*http.Response, []byte, error) {
 			logRequest(&request, response.StatusCode, &bodyBytes, delta, logCurl)
 
 			//Check if can retry response
-			if canContinueRetry(response) {
+			if request.RetryStrategy(response) {
 				//Sleep before next round
 				if request.RetryTimeout.Nanoseconds() > 0 {
 					time.Sleep(request.RetryTimeout)
