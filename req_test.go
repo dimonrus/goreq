@@ -1,6 +1,8 @@
 package goreq
 
 import (
+	"github.com/dimonrus/porterr"
+	"net/http/httptest"
 	"testing"
 	"fmt"
 	"sync"
@@ -13,9 +15,9 @@ import (
 
 //https://jsonplaceholder.typicode.com/posts
 var jsonplaceholder = HttpRequest{
-	Host:         "https://jsonplaceholder.typicode.com",
-	Headers:      map[string][]string{"Content-Type": {"application/json"}},
-	Label:        "Jsonplaceholder",
+	Host:    "https://jsonplaceholder.typicode.com",
+	Headers: map[string][]string{"Content-Type": {"application/json"}},
+	Label:   "Jsonplaceholder",
 }
 
 var badJsonplaceholder = HttpRequest{
@@ -23,7 +25,7 @@ var badJsonplaceholder = HttpRequest{
 	Headers:      map[string][]string{"Content-Type": {"application/json"}},
 	Label:        "BadJsonplaceholder",
 	RetryCount:   2,
-	RetryTimeout: time.Duration(time.Millisecond*100),
+	RetryTimeout: time.Duration(time.Millisecond * 100),
 }
 
 type Post struct {
@@ -58,7 +60,7 @@ func GetPost(id int) (post *Post, err error) {
 	return &p, nil
 }
 
-func CreatePost(post *Post) (*Post, error)  {
+func CreatePost(post *Post) (*Post, error) {
 	_, err := jsonplaceholder.EnsureJSON("POST", "/posts", nil, post, post)
 	if err != nil {
 		return nil, err
@@ -85,7 +87,7 @@ func TestGetPostAsync(t *testing.T) {
 		}
 		c <- *p
 	}()
-	time.Sleep(time.Second*2)
+	time.Sleep(time.Second * 2)
 }
 
 func TestCreatePostAsync(t *testing.T) {
@@ -216,4 +218,37 @@ func TestGroupClassic(t *testing.T) {
 		}(i)
 	}
 	wg.Wait()
+}
+
+func TestClient(t *testing.T) {
+	w := httptest.NewRecorder()
+	data := []byte(`{"message":"hight level message","error":{"message":"Filed with message","code":"FAILED_CODE","name":"Unknown","data":[{"message":"New detail","code":"SOME_CODE","name":"item"},{"message":"New detail 2","code":400,"name":"item second"}]}}`)
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusBadRequest)
+	_, err := w.Write(data)
+	if err != nil {
+		t.Fatal(err)
+	}
+	resp := w.Result()
+	b, err := ioutil.ReadAll(resp.Body)
+	fmt.Printf("%s\n", b)
+	if err != nil {
+		t.Fatal(err)
+	}
+	response := struct {
+		Message string         `json:"message"`
+		Error   porterr.IError `json:"error"`
+	}{
+		Error: &porterr.PortError{},
+	}
+	err = json.Unmarshal(b, &response)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if response.Error.Error() != "Filed with message" {
+		t.Fatal("wrong decode")
+	}
+	if resp.StatusCode != http.StatusBadRequest {
+		t.Fatal("wrong status code")
+	}
 }

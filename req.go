@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
+	"github.com/dimonrus/porterr"
 	"io/ioutil"
 	"log"
 	"net/http"
@@ -56,16 +57,15 @@ type HttpRequest struct {
 
 //Validate request
 func (r *HttpRequest) validate() error {
+	e := porterr.New(porterr.PortErrorValidation, "Request is invalid").HTTP(http.StatusBadRequest)
 	if r.Method == "" {
-		return &Error{Message: "Method is not defined", HttpCode: http.StatusBadRequest}
+		e = e.PushDetail(porterr.PortErrorParam, "method", "Method is not defined")
 	}
-
 	if r.Host == "" {
-		return &Error{Message: "Host is not defined", HttpCode: http.StatusBadRequest}
+		e = e.PushDetail(porterr.PortErrorParam, "host", "Host is not defined")
 	}
-
 	if r.Url == "" {
-		return &Error{Message: "Url is not defined", HttpCode: http.StatusBadRequest}
+		e = e.PushDetail(porterr.PortErrorParam, "url", "Url is not defined")
 	}
 	return nil
 }
@@ -88,12 +88,15 @@ func canContinueRetry(response *http.Response) bool {
 }
 
 //Response error returns
-func responseError(response *http.Response, route string, service string) (err error) {
+//Default method.
+//If you need to override this please override for ResponseErrorStrategy
+func responseError(response *http.Response, route string, service string) error {
+	var e porterr.IError
 	if response.StatusCode >= http.StatusBadRequest {
-		err = &Error{Message: fmt.Sprintf("%s: %s. Service: %s", http.StatusText(response.StatusCode), route, service), HttpCode: response.StatusCode}
+		e = porterr.NewF(porterr.PortErrorResponse, "%s: %s. Service: %s", http.StatusText(response.StatusCode), route, service)
+		e = e.HTTP(response.StatusCode)
 	}
-
-	return err
+	return e
 }
 
 // Build curl for logging
@@ -147,7 +150,7 @@ func Ensure(request HttpRequest) (*http.Response, []byte, error) {
 	//Make new request
 	req, err := http.NewRequest(request.Method, request.Host+request.Url, nil)
 	if err != nil {
-		return nil, nil, &Error{Message: fmt.Sprintf("Http Request build error: %s. Service: %s", err, request.Label), HttpCode: http.StatusInternalServerError}
+		return nil, nil, porterr.NewF(porterr.PortErrorRequest, "Http Request build error: %s. Service: %s", err, request.Label)
 	}
 	req.Header = request.Headers
 
@@ -181,7 +184,7 @@ func Ensure(request HttpRequest) (*http.Response, []byte, error) {
 			//if no response than log
 			request.Logger.Printf("\x1b[31;1m"+logCurl+"\n %s \n FAILED!!!\x1b[0m", err)
 			if i >= request.RetryCount {
-				return nil, nil, &Error{Message: fmt.Sprintf("Http Request (%s) failed. Service: %s, Error: %s", request.Url, request.Label, err), HttpCode: http.StatusInternalServerError}
+				return nil, nil, porterr.NewF(porterr.PortErrorSystem, "Http Request (%s) failed. Service: %s, Error: %s", request.Url, request.Label, err)
 			}
 			if request.RetryTimeout.Nanoseconds() > 0 {
 				time.Sleep(request.RetryTimeout)
@@ -193,14 +196,7 @@ func Ensure(request HttpRequest) (*http.Response, []byte, error) {
 			if err != nil {
 				bodyBytes = []byte{}
 				logRequest(&request, response.StatusCode, &bodyBytes, delta, logCurl)
-				return nil, nil, &Error{
-					Message: fmt.Sprintf(
-						"Http Response (%s) read error: %s. Service: %s",
-						request.Host+request.Url,
-						err,
-						request.Label),
-					HttpCode: http.StatusInternalServerError,
-				}
+				return nil, nil, porterr.NewF(porterr.PortErrorResponse, "Http Response (%s) read error: %s. Service: %s", request.Host+request.Url, err, request.Label)
 			}
 			//Log request
 			logRequest(&request, response.StatusCode, &bodyBytes, delta, logCurl)
@@ -218,6 +214,9 @@ func Ensure(request HttpRequest) (*http.Response, []byte, error) {
 		}
 	}
 
+	if response != nil {
+		response.Body = ioutil.NopCloser(bytes.NewBuffer(bodyBytes))
+	}
 	if request.ResponseErrorStrategy != nil {
 		err = request.ResponseErrorStrategy(response, request.Url, request.Label)
 	}
@@ -280,14 +279,7 @@ func (r HttpRequest) EnsureJSON(method string, url string, header http.Header, b
 		//Marshal body
 		b, err := json.Marshal(body)
 		if err != nil {
-			return nil, &Error{
-				Message: fmt.Sprintf(
-					"Http Request (%s) marshal error: %s. Service: %s",
-					req.Host+req.Url,
-					err.Error(),
-					req.Label),
-				HttpCode: http.StatusInternalServerError,
-			}
+			return nil, porterr.NewF(porterr.PortErrorBody, "Http Request (%s) marshal error: %s. Service: %s", req.Host+req.Url, err.Error(), req.Label)
 		}
 		req.Body = b
 	}
@@ -295,9 +287,6 @@ func (r HttpRequest) EnsureJSON(method string, url string, header http.Header, b
 	// Ensure
 	response, data, err := Ensure(req)
 	if err != nil {
-		if response != nil {
-			response.Body = ioutil.NopCloser(bytes.NewBuffer(data))
-		}
 		return response, err
 	}
 
@@ -305,14 +294,7 @@ func (r HttpRequest) EnsureJSON(method string, url string, header http.Header, b
 	if dto != nil {
 		err = json.Unmarshal(data, dto)
 		if err != nil {
-			return nil, &Error{
-				Message: fmt.Sprintf(
-					"Http Response (%s) unmarshal error: %s. Service: %s",
-					req.Host+req.Url,
-					err.Error(),
-					req.Label),
-				HttpCode: http.StatusInternalServerError,
-			}
+			return nil, porterr.NewF(porterr.PortErrorBody, "Http Response (%s) marshal error: %s. Service: %s", req.Host+req.Url, err.Error(), req.Label)
 		}
 	}
 
