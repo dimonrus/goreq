@@ -1,16 +1,18 @@
 package goreq
 
 import (
-	"github.com/dimonrus/porterr"
-	"net/http/httptest"
-	"testing"
-	"fmt"
-	"sync"
-	"time"
-	"net/http"
-	"io/ioutil"
 	"encoding/json"
+	"fmt"
+	"github.com/dimonrus/gorest"
+	"github.com/dimonrus/porterr"
+	"io/ioutil"
 	"log"
+	"net/http"
+	"net/http/httptest"
+	"strconv"
+	"sync"
+	"testing"
+	"time"
 )
 
 //https://jsonplaceholder.typicode.com/posts
@@ -53,7 +55,10 @@ func GetPosts() (posts []Post, err error) {
 
 func GetPost(id int) (post *Post, err error) {
 	p := Post{}
-	_, err = jsonplaceholder.EnsureJSON("GET", fmt.Sprintf("/posts/%v", id), nil, nil, &p)
+	h := make(http.Header)
+	h.Add("x-post", strconv.Itoa(id))
+	jsonplaceholder.InitDefaultLogger()
+	_, err = jsonplaceholder.EnsureJSON("GET", fmt.Sprintf("/posts/%v", id), h, nil, &p)
 	if err != nil {
 		return nil, err
 	}
@@ -251,4 +256,87 @@ func TestClient(t *testing.T) {
 	if resp.StatusCode != http.StatusBadRequest {
 		t.Fatal("wrong status code")
 	}
+}
+
+func testErrorHandler(w http.ResponseWriter, r *http.Request) {
+	e := porterr.New(porterr.PortErrorSearch, "Some failed message").HTTP(http.StatusNotFound)
+	e = e.PushDetail(porterr.PortErrorDecoder, "some", "Some error")
+	e = e.PushDetail(porterr.PortErrorDecoder, "other", "Some other error")
+	res := struct {
+		Error porterr.IError `json:"error"`
+	}{
+		Error: e,
+	}
+	w.WriteHeader(e.GetHTTP())
+	data, _ := json.Marshal(res)
+	_, _ = w.Write(data)
+}
+
+func testOkHandler(w http.ResponseWriter, r *http.Request) {
+	ok := gorest.NewOkJsonResponse("hello", nil, nil)
+	data, _ := json.Marshal(ok)
+	_, _ = w.Write(data)
+}
+
+var localholder = HttpRequest{
+	Headers: map[string][]string{"Content-Type": {"application/json"}},
+	Host: "",
+	ResponseErrorStrategy: gorest.ResponseErrorStrategy,
+	Label:   "localreq",
+}
+
+func TestGoreqError(t *testing.T) {
+	s := httptest.NewServer(http.HandlerFunc(testErrorHandler))
+	_, err := localholder.EnsureJSON(http.MethodGet, s.URL, nil, nil, nil)
+	if err == nil {
+		t.Fatal("error await")
+	}
+	e := err.(*porterr.PortError)
+	fmt.Println(e.GetDetails())
+	fmt.Println(len(e.GetDetails()))
+}
+
+func TestGoreqOk(t *testing.T) {
+	s := httptest.NewServer(http.HandlerFunc(testOkHandler))
+	resp := gorest.JsonResponse{}
+	_, err := localholder.EnsureJSON(http.MethodGet, s.URL, nil, nil, &resp)
+	if err != nil {
+		t.Fatal(err)
+	}
+	fmt.Println(resp.Message)
+}
+
+func BenchmarkErrors(b *testing.B) {
+	s := httptest.NewServer(http.HandlerFunc(testErrorHandler))
+	//localholder.InitDefaultLogger()
+	for i := 0; i < b.N; i++ {
+		_, err := localholder.EnsureJSON(http.MethodGet, s.URL, nil, nil, nil)
+		if err == nil {
+			b.Fatal("error await")
+		}
+	}
+	b.ReportAllocs()
+}
+
+func BenchmarkOk(b *testing.B) {
+	s := httptest.NewServer(http.HandlerFunc(testOkHandler))
+	//resp := gorest.JsonResponse{}
+	for i := 0; i < b.N; i++ {
+		_, err := localholder.EnsureJSON(http.MethodGet, s.URL, nil, nil, nil)
+		if err != nil {
+			b.Fatal(err)
+		}
+	}
+	b.ReportAllocs()
+}
+
+func BenchmarkErrorsClassic(b *testing.B) {
+	s := httptest.NewServer(http.HandlerFunc(testErrorHandler))
+	for i := 0; i < b.N; i++ {
+		_, err := http.Get(s.URL)
+		if err != nil {
+			b.Fatal("error await")
+		}
+	}
+	b.ReportAllocs()
 }
