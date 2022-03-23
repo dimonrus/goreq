@@ -1,8 +1,8 @@
 module github.com/dimonrus/goreq
 
-go 1.12
+go 1.18
 
 require (
-	github.com/dimonrus/gorest v0.8.2
-	github.com/dimonrus/porterr v1.10.0
+	github.com/dimonrus/gorest v0.8.4
+	github.com/dimonrus/porterr v1.10.1
 )

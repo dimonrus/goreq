@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
+	"github.com/dimonrus/gorest"
 	"github.com/dimonrus/porterr"
 	"io/ioutil"
 	"log"
@@ -68,10 +69,7 @@ func (r *HttpRequest) validate() error {
 	if r.Url == "" {
 		e = e.PushDetail(porterr.PortErrorParam, "url", "Url is not defined")
 	}
-	if len(e.GetDetails()) > 0 {
-		return e
-	}
-	return nil
+	return e.IfDetails()
 }
 
 //Retry strategy
@@ -140,7 +138,7 @@ func initDefault(request *HttpRequest) {
 }
 
 //Init default logger
-func (r *HttpRequest) InitDefaultLogger()  {
+func (r *HttpRequest) InitDefaultLogger() {
 	r.Logger = log.New(os.Stdout, "REQUEST: ", log.Ldate|log.Ltime)
 }
 
@@ -316,4 +314,82 @@ func (r HttpRequest) EnsureJSON(method string, url string, header http.Header, b
 	}
 
 	return response, nil
+}
+
+// ParallelPaginatorJsonEnsure Execute api call that can have async count of parallel request
+func ParallelPaginatorJsonEnsure[F IPaginator, R any](form F, hr HttpRequest) (items []R, meta gorest.Meta, e porterr.IError) {
+	call := func(requestForm F) (data []R, meta gorest.Meta, e porterr.IError) {
+		response := gorest.JsonResponse{Data: &data, Meta: &meta}
+		_, err := hr.EnsureJSON(hr.Method, hr.Url, hr.Headers, requestForm, &response)
+		if err != nil {
+			e = err.(*porterr.PortError)
+		}
+		return
+	}
+	items, meta, e = call(form)
+	if e != nil || form.GetParallelCount() == 0 {
+		return
+	}
+	// set current page
+	var iterator = meta.Page
+	if iterator == 0 {
+		iterator = 1
+	}
+	// count number of elements that must be fetched
+	var total = meta.Total - iterator*meta.Limit
+	// count number of total requests
+	var respLen = total / meta.Limit
+	if meta.Total%meta.Limit > 0 {
+		respLen++
+	}
+	// result for return
+	var result = make([]R, total+meta.Limit)
+	// all parallel requests result
+	var resp = make([][]R, respLen+1)
+	// data from requests
+	var fetch = make(chan PaginatorResponse[R], form.GetParallelCount())
+	// max requests in moments
+	var request = make(chan struct{}, form.GetParallelCount())
+	// go requests
+	go func() {
+		for iterator <= respLen {
+			iterator++
+			r := form.Clone().(IPaginator)
+			r.SetPage(iterator)
+			request <- struct{}{}
+			go func(f chan PaginatorResponse[R], p F) {
+				items, meta, e := call(p)
+				f <- PaginatorResponse[R]{
+					Items: items,
+					Meta:  meta,
+					Error: e,
+				}
+				<-request
+			}(fetch, r.(F))
+		}
+	}()
+	// process parallel result
+	var processed = 1
+	for response := range fetch {
+		if response.Error != nil {
+			e = response.Error
+			return
+		}
+		resp[response.Meta.Page-1] = response.Items
+		processed++
+		if processed == respLen+1 {
+			close(fetch)
+			break
+		}
+	}
+	// save data according to order
+	copy(result[:meta.Limit], items)
+	for i := range resp {
+		if resp[i] == nil {
+			continue
+		}
+		copy(result[i*meta.Limit:i*meta.Limit+len(resp[i])], resp[i])
+	}
+	items = result
+	return
 }

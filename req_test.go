@@ -9,6 +9,7 @@ import (
 	"log"
 	"net/http"
 	"net/http/httptest"
+	"os"
 	"strconv"
 	"sync"
 	"testing"
@@ -18,6 +19,7 @@ import (
 //https://jsonplaceholder.typicode.com/posts
 var jsonplaceholder = HttpRequest{
 	Host:    "https://jsonplaceholder.typicode.com",
+	Logger:  log.New(os.Stdout, "Placeholder: ", log.Lshortfile),
 	Headers: map[string][]string{"Content-Type": {"application/json"}},
 	Label:   "Jsonplaceholder",
 }
@@ -279,10 +281,11 @@ func testOkHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 var localholder = HttpRequest{
-	Headers: map[string][]string{"Content-Type": {"application/json"}},
-	Host: "",
+	Headers:               map[string][]string{"Content-Type": {"application/json"}},
+	Host:                  "",
+	Logger:                log.New(os.Stdout, "local: ", log.Llongfile),
 	ResponseErrorStrategy: gorest.ResponseErrorStrategy,
-	Label:   "localreq",
+	Label:                 "localreq",
 }
 
 func TestGoreqError(t *testing.T) {
@@ -339,4 +342,71 @@ func BenchmarkErrorsClassic(b *testing.B) {
 		}
 	}
 	b.ReportAllocs()
+}
+
+type PaginatorTestItem struct {
+	Number int `json:"number"`
+}
+
+type PaginatorRequestForm struct {
+	Name string `json:"name"`
+	Paginator
+}
+
+func (p *PaginatorRequestForm) Clone() interface{} {
+	var f = *p
+	return &f
+}
+
+func testPaginatorHandler(w http.ResponseWriter, r *http.Request) {
+	var p Paginator
+	var t int64
+	var total = r.URL.Query()["total"]
+	if len(total) > 0 {
+		t, _ = strconv.ParseInt(total[0], 10, 64)
+	}
+	data, _ := ioutil.ReadAll(r.Body)
+	err := json.Unmarshal(data, &p)
+	if err != nil {
+		gorest.NewErrorJsonResponse(porterr.New(porterr.PortErrorRequest, err.Error()))
+		return
+	}
+	if p.Page == 0 {
+		p.Page = 1
+	}
+	meta := gorest.Meta{
+		Page:  p.Page,
+		Limit: p.Limit,
+		Total: int(t),
+	}
+	var response []PaginatorTestItem
+	for i := (p.Page - 1) * p.Limit; i < p.Page*p.Limit; i++ {
+		if i >= int(t) {
+			continue
+		}
+		response = append(response, PaginatorTestItem{Number: i})
+	}
+	ok := gorest.NewOkJsonResponse("paginator", response, meta)
+	resp, _ := json.Marshal(ok)
+	_, _ = w.Write(resp)
+}
+
+func TestParallelPaginatorJsonEnsure(t *testing.T) {
+	s := httptest.NewServer(http.HandlerFunc(testPaginatorHandler))
+	s.URL += "/?total=125"
+	localholder.Url = s.URL
+	localholder.Method = http.MethodPost
+	body := PaginatorRequestForm{
+		Name: "item",
+		Paginator: Paginator{
+			Page:          5,
+			Limit:         10,
+			ParallelCount: 10,
+		},
+	}
+	items, meta, e := ParallelPaginatorJsonEnsure[*PaginatorRequestForm, PaginatorTestItem](&body, localholder)
+	if e != nil {
+		t.Fatal(e)
+	}
+	fmt.Println(items, meta)
 }

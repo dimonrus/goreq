@@ -1,4 +1,4 @@
-github.com/dimonrus/gorest v0.8.2 h1:Jp5js2CC1r8MTNEyXcqfn61NqsU25IviQ1UzY+nQ74o=
-github.com/dimonrus/gorest v0.8.2/go.mod h1:0L8oY/6pNm72akLGY6J5DtST5whOkbDLet3Bixoa4XE=
-github.com/dimonrus/porterr v1.10.0 h1:NpxjsrdSiNNASoGVuQ2fZCyg/0Z6Et1cvoyCmdrILuA=
-github.com/dimonrus/porterr v1.10.0/go.mod h1:BCVpaUyYdawPPzeAa8yjCYvemctND1I9ER/nFnOyDgQ=
+github.com/dimonrus/gorest v0.8.4 h1:VOogmW4NJutibQzF5cQOTbXELf1CbPJklWKX11wN6e8=
+github.com/dimonrus/gorest v0.8.4/go.mod h1:Zf8zihJq0b20f2thJCGdHz6V13O88x/y8xBXBEF06IM=
+github.com/dimonrus/porterr v1.10.1 h1:d47TbN8srmxx2TzTuJ0XVGnX9w+cCGATB9YJEKuciYA=
+github.com/dimonrus/porterr v1.10.1/go.mod h1:BCVpaUyYdawPPzeAa8yjCYvemctND1I9ER/nFnOyDgQ=
