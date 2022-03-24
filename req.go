@@ -337,11 +337,14 @@ func ParallelPaginatorJsonEnsure[F any, R any](form F, hr HttpRequest) (items []
 	// - if error detected
 	// - if not parallel operation
 	// - if last page were called
-	if e != nil || _form.GetParallelCount() == 0 || _form.GetPage()*_form.GetLimit() > meta.Total {
+	if e != nil || _form.GetParallelCount() == 0 {
 		return
 	}
 	if meta.Page == 0 {
 		meta.Page = 1
+	}
+	if meta.Page*meta.Limit > meta.Total {
+		return
 	}
 	var iterator int
 	// count number of elements that must be fetched
