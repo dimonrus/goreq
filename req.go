@@ -317,7 +317,13 @@ func (r HttpRequest) EnsureJSON(method string, url string, header http.Header, b
 }
 
 // ParallelPaginatorJsonEnsure Execute api call that can have async count of parallel request
-func ParallelPaginatorJsonEnsure[F IPaginator, R any](form F, hr HttpRequest) (items []R, meta gorest.Meta, e porterr.IError) {
+func ParallelPaginatorJsonEnsure[F any, R any](form F, hr goreq.HttpRequest) (items []R, meta gorest.Meta, e porterr.IError) {
+	var _f interface{} = &form
+	var _form, ok = _f.(IPaginator)
+	if !ok {
+		e = porterr.New(porterr.PortErrorRequest, "form must implements IPaginator interface")
+		return
+	}
 	call := func(requestForm F) (data []R, meta gorest.Meta, e porterr.IError) {
 		response := gorest.JsonResponse{Data: &data, Meta: &meta}
 		_, err := hr.EnsureJSON(hr.Method, hr.Url, hr.Headers, requestForm, &response)
@@ -327,16 +333,19 @@ func ParallelPaginatorJsonEnsure[F IPaginator, R any](form F, hr HttpRequest) (i
 		return
 	}
 	items, meta, e = call(form)
-	if e != nil || form.GetParallelCount() == 0 {
+	// return on condition
+	// - if error detected
+	// - if not parallel operation
+	// - if last page were called
+	if e != nil || _form.GetParallelCount() == 0 || _form.GetPage()*_form.GetLimit() > meta.Total {
 		return
 	}
-	// set current page
-	var iterator = meta.Page
-	if iterator == 0 {
-		iterator = 1
+	if meta.Page == 0 {
+		meta.Page = 1
 	}
+	var iterator int
 	// count number of elements that must be fetched
-	var total = meta.Total - iterator*meta.Limit
+	var total = meta.Total - meta.Page*meta.Limit
 	// count number of total requests
 	var respLen = total / meta.Limit
 	if meta.Total%meta.Limit > 0 {
@@ -344,18 +353,17 @@ func ParallelPaginatorJsonEnsure[F IPaginator, R any](form F, hr HttpRequest) (i
 	}
 	// result for return
 	var result = make([]R, total+meta.Limit)
-	// all parallel requests result
-	var resp = make([][]R, respLen+1)
 	// data from requests
-	var fetch = make(chan PaginatorResponse[R], form.GetParallelCount())
+	var fetch = make(chan PaginatorResponse[R], respLen)
 	// max requests in moments
-	var request = make(chan struct{}, form.GetParallelCount())
+	var request = make(chan struct{}, _form.GetParallelCount())
 	// go requests
 	go func() {
-		for iterator <= respLen {
+		for iterator < respLen {
 			iterator++
-			r := form.Clone().(IPaginator)
-			r.SetPage(iterator)
+			var p = form
+			var fp interface{} = &p
+			fp.(IPaginator).SetPage(iterator + meta.Page)
 			request <- struct{}{}
 			go func(f chan PaginatorResponse[R], p F) {
 				items, meta, e := call(p)
@@ -365,30 +373,24 @@ func ParallelPaginatorJsonEnsure[F IPaginator, R any](form F, hr HttpRequest) (i
 					Error: e,
 				}
 				<-request
-			}(fetch, r.(F))
+			}(fetch, p)
 		}
 	}()
+	// save data according to order
+	copy(result[:meta.Limit], items)
 	// process parallel result
-	var processed = 1
+	var processed int
 	for response := range fetch {
 		if response.Error != nil {
 			e = response.Error
 			return
 		}
-		resp[response.Meta.Page-1] = response.Items
+		copy(result[(response.Meta.Page-meta.Page)*meta.Limit:(response.Meta.Page-meta.Page)*meta.Limit+len(response.Items)], response.Items)
 		processed++
-		if processed == respLen+1 {
+		if processed == respLen {
 			close(fetch)
 			break
 		}
-	}
-	// save data according to order
-	copy(result[:meta.Limit], items)
-	for i := range resp {
-		if resp[i] == nil {
-			continue
-		}
-		copy(result[i*meta.Limit:i*meta.Limit+len(resp[i])], resp[i])
 	}
 	items = result
 	return
