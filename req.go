@@ -317,7 +317,7 @@ func (r HttpRequest) EnsureJSON(method string, url string, header http.Header, b
 }
 
 // ParallelPaginatorJsonEnsure Execute api call that can have async count of parallel request
-func ParallelPaginatorJsonEnsure[F any, R any](form F, hr goreq.HttpRequest) (items []R, meta gorest.Meta, e porterr.IError) {
+func ParallelPaginatorJsonEnsure[F any, R any](form F, hr HttpRequest) (items []R, meta gorest.Meta, e porterr.IError) {
 	var _f interface{} = &form
 	var _form, ok = _f.(IPaginator)
 	if !ok {
