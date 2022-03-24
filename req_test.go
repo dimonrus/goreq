@@ -393,20 +393,42 @@ func testPaginatorHandler(w http.ResponseWriter, r *http.Request) {
 
 func TestParallelPaginatorJsonEnsure(t *testing.T) {
 	s := httptest.NewServer(http.HandlerFunc(testPaginatorHandler))
-	s.URL += "/?total=125"
+	var total = 125
+	var page = 4
+	var pCount = 10
+	var limit = 13
+	s.URL += fmt.Sprintf("/?total=%v", total)
 	localholder.Url = s.URL
 	localholder.Method = http.MethodPost
 	body := PaginatorRequestForm{
 		Name: "item",
 		Paginator: Paginator{
-			Page:          5,
-			Limit:         10,
-			ParallelCount: 10,
+			Page:          page,
+			Limit:         limit,
+			ParallelCount: pCount,
 		},
 	}
-	items, meta, e := ParallelPaginatorJsonEnsure[*PaginatorRequestForm, PaginatorTestItem](&body, localholder)
+	items, meta, e := ParallelPaginatorJsonEnsure[PaginatorRequestForm, PaginatorTestItem](body, localholder)
 	if e != nil {
 		t.Fatal(e)
+	}
+	var count int
+	var maxPage = total / limit
+	if total%limit > 0 {
+		maxPage++
+	}
+	if page < maxPage {
+		count = total - page*limit + limit
+	} else if page == maxPage {
+		count = total - (page-1)*limit
+	}
+	if len(items) != count {
+		t.Fatal("wrong item response")
+	}
+	for i, item := range items {
+		if item.Number != i+(page-1)*limit {
+			t.Fatal("wrong order")
+		}
 	}
 	fmt.Println(items, meta)
 }
