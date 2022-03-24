@@ -19,8 +19,6 @@ type IPaginator interface {
 	GetParallelCount() int
 	// SetParallelCount set parallel request count
 	SetParallelCount(count int)
-	// Clone clone paginator form
-	Clone() any
 }
 
 // Paginator Base paginator struct
