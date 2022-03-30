@@ -326,7 +326,7 @@ func ParallelPaginatorJsonEnsure[F any, R any](form F, hr HttpRequest) (items []
 	}
 	call := func(requestForm F) (data []R, meta gorest.Meta, e porterr.IError) {
 		response := gorest.JsonResponse{Data: &data, Meta: &meta}
-		_, err := hr.EnsureJSON(hr.Method, hr.Url, hr.Headers, requestForm, &response)
+		_, err := hr.EnsureJSON(hr.Method, hr.Url, nil, requestForm, &response)
 		if err != nil {
 			e = err.(*porterr.PortError)
 		}
