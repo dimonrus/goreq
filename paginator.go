@@ -29,7 +29,7 @@ type Paginator struct {
 	// Limit for pagination
 	Limit int `json:"limit"`
 	// Parallel request
-	ParallelCount int
+	ParallelCount int `json:"parallelCount"`
 }
 
 // GetPage get current page
