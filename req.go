@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"github.com/dimonrus/gorest"
 	"github.com/dimonrus/porterr"
-	"io/ioutil"
+	"io"
 	"log"
 	"net/http"
 	"os"
@@ -14,18 +14,18 @@ import (
 	"time"
 )
 
-//Default request timeout
+// Default request timeout
 const DefaultTimeout = 30
 
-//Request logger interface
-//Implement default logger methods
+// Request logger interface
+// Implement default logger methods
 type Logger interface {
 	Print(v ...interface{})
 	Println(v ...interface{})
 	Printf(format string, v ...interface{})
 }
 
-//Each request performs via struct bellow
+// Each request performs via struct bellow
 type HttpRequest struct {
 	//Host service label. For messages
 	Label string
@@ -56,8 +56,8 @@ type HttpRequest struct {
 	LogBodySize int
 }
 
-//Validate request
-func (r *HttpRequest) validate() error {
+// Validate request
+func (r HttpRequest) validate() error {
 	e := porterr.New(porterr.PortErrorValidation, "Request is invalid").HTTP(http.StatusBadRequest)
 	// Disable host validation for tests
 	//if r.Host == "" {
@@ -72,8 +72,8 @@ func (r *HttpRequest) validate() error {
 	return e.IfDetails()
 }
 
-//Retry strategy
-//if response code belongs to 500, 502, 503, 504 than repeat request
+// Retry strategy
+// if response code belongs to 500, 502, 503, 504 than repeat request
 func canContinueRetry(response *http.Response) bool {
 	switch response.StatusCode {
 	case http.StatusInternalServerError:
@@ -89,9 +89,9 @@ func canContinueRetry(response *http.Response) bool {
 	}
 }
 
-//Response error returns
-//Default method.
-//If you need to override this please override for ResponseErrorStrategy
+// Response error returns
+// Default method.
+// If you need to override this please override for ResponseErrorStrategy
 func responseError(response *http.Response) error {
 	var e porterr.IError
 	if response.StatusCode >= http.StatusBadRequest {
@@ -131,18 +131,18 @@ func initDefault(request *HttpRequest) {
 	if request.RetryStrategy == nil {
 		request.RetryStrategy = canContinueRetry
 	}
-	//Check error response strategy strategy
+	//Check error response strategy
 	if request.ResponseErrorStrategy == nil {
 		request.ResponseErrorStrategy = responseError
 	}
 }
 
-//Init default logger
+// Init default logger
 func (r *HttpRequest) InitDefaultLogger() {
 	r.Logger = log.New(os.Stdout, "REQUEST: ", log.Ldate|log.Ltime)
 }
 
-//Ensure request
+// Ensure request
 func Ensure(request HttpRequest) (*http.Response, []byte, error) {
 	//Validate request
 	if err := request.validate(); err != nil {
@@ -181,7 +181,7 @@ func Ensure(request HttpRequest) (*http.Response, []byte, error) {
 	for i := uint(0); i <= request.RetryCount; i++ {
 		//Set body
 		buffer = bytes.NewBuffer(request.Body)
-		req.Body = ioutil.NopCloser(buffer)
+		req.Body = io.NopCloser(buffer)
 		//Get start time
 		startTime = time.Now().UnixNano()
 		//Perform request
@@ -204,7 +204,7 @@ func Ensure(request HttpRequest) (*http.Response, []byte, error) {
 			}
 		} else {
 			// Read response
-			bodyBytes, err = ioutil.ReadAll(response.Body)
+			bodyBytes, err = io.ReadAll(response.Body)
 			response.Body.Close()
 			if err != nil {
 				bodyBytes = []byte{}
@@ -228,7 +228,7 @@ func Ensure(request HttpRequest) (*http.Response, []byte, error) {
 	}
 
 	if response != nil {
-		response.Body = ioutil.NopCloser(bytes.NewBuffer(bodyBytes))
+		response.Body = io.NopCloser(bytes.NewBuffer(bodyBytes))
 	}
 	if request.ResponseErrorStrategy != nil {
 		err = request.ResponseErrorStrategy(response)
