@@ -14,10 +14,10 @@ import (
 	"time"
 )
 
-// Default request timeout
+// DefaultTimeout Default request timeout
 const DefaultTimeout = 30
 
-// Request logger interface
+// Logger Request logger interface
 // Implement default logger methods
 type Logger interface {
 	Print(v ...interface{})
@@ -25,7 +25,7 @@ type Logger interface {
 	Printf(format string, v ...interface{})
 }
 
-// Each request performs via struct bellow
+// HttpRequest Each request performs via struct bellow
 type HttpRequest struct {
 	//Host service label. For messages
 	Label string
@@ -103,23 +103,23 @@ func responseError(response *http.Response) error {
 	return e
 }
 
-// Build curl for logging
-func BuildCURL(request *HttpRequest) string {
+// BuildCURL Build curl for logging
+func BuildCURL(request HttpRequest) string {
+	b := strings.Builder{}
+	b.WriteString("curl -X " + request.Method + " '" + request.Host + request.Url + "'")
 	//Collect headers
-	var headersLog string
 	for k, v := range request.Headers {
-		headersLog += fmt.Sprintf("-H '%s: %s' ", k, strings.Join(v, ","))
+		b.WriteString(" -H '" + k + ": " + strings.Join(v, ",") + "' ")
 	}
 	// log body
 	if request.Body != nil {
 		if request.LogBodySize == 0 || len(request.Body) < request.LogBodySize {
-			headersLog += fmt.Sprintf("-d '%s'", request.Body)
+			b.WriteString("-d '" + string(request.Body) + "'")
 		} else {
-			headersLog += fmt.Sprintf("-d '%s...'", request.Body[:request.LogBodySize-1])
+			b.WriteString("-d '" + string(request.Body[:request.LogBodySize-1]) + "...'")
 		}
 	}
-
-	return fmt.Sprintf("curl -X %s '%s' %s", request.Method, request.Host+request.Url, headersLog)
+	return b.String()
 }
 
 func initDefault(request *HttpRequest) {
@@ -137,7 +137,7 @@ func initDefault(request *HttpRequest) {
 	}
 }
 
-// Init default logger
+// InitDefaultLogger Init default logger
 func (r *HttpRequest) InitDefaultLogger() {
 	r.Logger = log.New(os.Stdout, "REQUEST: ", log.Ldate|log.Ltime)
 }
@@ -162,7 +162,7 @@ func Ensure(request HttpRequest) (*http.Response, []byte, error) {
 	//Log request as CURL
 	var logCurl string
 	if request.Logger != nil {
-		logCurl = BuildCURL(&request)
+		logCurl = BuildCURL(request)
 	}
 
 	// Response
@@ -205,7 +205,7 @@ func Ensure(request HttpRequest) (*http.Response, []byte, error) {
 		} else {
 			// Read response
 			bodyBytes, err = io.ReadAll(response.Body)
-			response.Body.Close()
+			_ = response.Body.Close()
 			if err != nil {
 				bodyBytes = []byte{}
 				logRequest(&request, response.StatusCode, &bodyBytes, delta, logCurl)
@@ -254,7 +254,7 @@ func logRequest(request *HttpRequest, responseStatus int, responseBody *[]byte, 
 		logBody = fmt.Sprintf("Body: %s...", strings.Join(strings.Fields(string(*responseBody)[:request.LogBodySize-1]), " "))
 	}
 
-	//If response status code more then 300 shows in red
+	//If response status code more than 300 shows in red
 	if responseStatus >= 300 {
 		logStatus = "\x1b[31;1m" + logStatus + "\x1b[0m"
 		logBody = "\x1b[31;1m" + logBody + "\x1b[0m"
@@ -265,7 +265,7 @@ func logRequest(request *HttpRequest, responseStatus int, responseBody *[]byte, 
 	request.Logger.Print("\n    ", "\x1b[34;1m"+curl+"\x1b[0m", "\n    ", logStatus, "\n    ", logBody)
 }
 
-// Ensure JSON request
+// EnsureJSON ensure JSON request
 func (r HttpRequest) EnsureJSON(method string, url string, header http.Header, body interface{}, dto interface{}) (*http.Response, error) {
 	// Error interface
 	var err error

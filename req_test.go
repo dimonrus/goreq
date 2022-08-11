@@ -16,7 +16,7 @@ import (
 	"time"
 )
 
-//https://jsonplaceholder.typicode.com/posts
+// https://jsonplaceholder.typicode.com/posts
 var jsonplaceholder = HttpRequest{
 	Host:    "https://jsonplaceholder.typicode.com",
 	Logger:  log.New(os.Stdout, "Placeholder: ", log.Lshortfile),
@@ -431,4 +431,49 @@ func TestParallelPaginatorJsonEnsure(t *testing.T) {
 		}
 	}
 	fmt.Println(items, meta)
+}
+
+// ensure BenchmarkName-8   	      13323	     85158 ns/op	   42213 B/op	     109 allocs/op
+// ensure json BenchmarkName-8   	  12486	     94552 ns/op	   43415 B/op	     125 allocs/op
+// http.Post BenchmarkName-8   	      19886	     59323 ns/op	    6255 B/op	      69 allocs/op
+func BenchmarkName(b *testing.B) {
+	s := httptest.NewServer(http.HandlerFunc(testPaginatorHandler))
+	var total = 125
+	var page = 4
+	var pCount = 10
+	var limit = 13
+	s.URL += fmt.Sprintf("/?total=%v", total)
+	localholder.Url = s.URL
+	localholder.Method = http.MethodPost
+	localholder.Logger = nil
+	body := PaginatorRequestForm{
+		Name: "item",
+		Paginator: Paginator{
+			Page:          page,
+			Limit:         limit,
+			ParallelCount: pCount,
+		},
+	}
+	var response []PaginatorTestItem
+	for i := 0; i < b.N; i++ {
+		localholder.EnsureJSON(http.MethodPost, s.URL, nil, body, &response)
+	}
+	b.ReportAllocs()
+}
+
+func BenchmarkLogRequest(b *testing.B) {
+	localholder.Url = fmt.Sprintf("/?total=%v", 2)
+	localholder.Method = http.MethodPost
+	for i := 0; i < b.N; i++ {
+		BuildCURL(localholder)
+	}
+	b.ReportAllocs()
+}
+
+// BenchmarkLogRequest-8   	 5207312	       226.3 ns/op	     136 B/op	       3 allocs/op
+func TestBuildCURL(t *testing.T) {
+	localholder.Url = fmt.Sprintf("/?total=%v", 2)
+	localholder.Method = http.MethodPost
+	curl := BuildCURL(localholder)
+	t.Log(curl)
 }
