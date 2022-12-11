@@ -3,9 +3,9 @@ module github.com/dimonrus/goreq
 go 1.18
 
 require (
-	github.com/dimonrus/gorest v0.8.5
-	github.com/dimonrus/porterr v1.10.4
-	golang.org/x/net v0.0.0-20220809184613-07c6da5e1ced
+	github.com/dimonrus/gorest v0.8.9
+	github.com/dimonrus/porterr v1.13.1
+	golang.org/x/net v0.4.0
 )
 
-require golang.org/x/text v0.3.7 // indirect
+require golang.org/x/text v0.5.0 // indirect

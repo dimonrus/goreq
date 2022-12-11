@@ -189,7 +189,7 @@ func TestGroupClassic(t *testing.T) {
 	for i := 0; i < countOfPosts; i++ {
 		go func(index int) {
 			//Make new request
-			req, err := http.NewRequest("GET", jsonplaceholder.Host+fmt.Sprintf("/post/%v", i), nil)
+			req, err := http.NewRequest("GET", jsonplaceholder.Host+fmt.Sprintf("/post/%v", index), nil)
 			if err != nil {
 				postChan <- Post{}
 				wg.Done()
