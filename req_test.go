@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"github.com/dimonrus/gorest"
 	"github.com/dimonrus/porterr"
-	"io/ioutil"
+	"io"
 	"log"
 	"net/http"
 	"net/http/httptest"
@@ -204,7 +204,7 @@ func TestGroupClassic(t *testing.T) {
 				return
 			}
 
-			body, err := ioutil.ReadAll(response.Body)
+			body, err := io.ReadAll(response.Body)
 
 			if err != nil {
 				postChan <- Post{}
@@ -237,7 +237,7 @@ func TestClient(t *testing.T) {
 		t.Fatal(err)
 	}
 	resp := w.Result()
-	b, err := ioutil.ReadAll(resp.Body)
+	b, err := io.ReadAll(resp.Body)
 	fmt.Printf("%s\n", b)
 	if err != nil {
 		t.Fatal(err)
@@ -365,7 +365,7 @@ func testPaginatorHandler(w http.ResponseWriter, r *http.Request) {
 	if len(total) > 0 {
 		t, _ = strconv.ParseInt(total[0], 10, 64)
 	}
-	data, _ := ioutil.ReadAll(r.Body)
+	data, _ := io.ReadAll(r.Body)
 	err := json.Unmarshal(data, &p)
 	if err != nil {
 		gorest.NewErrorJsonResponse(porterr.New(porterr.PortErrorRequest, err.Error()))
@@ -433,10 +433,10 @@ func TestParallelPaginatorJsonEnsure(t *testing.T) {
 	fmt.Println(items, meta)
 }
 
-// ensure BenchmarkName-8   	      13323	     85158 ns/op	   42213 B/op	     109 allocs/op
-// ensure json BenchmarkName-8   	  12486	     94552 ns/op	   43415 B/op	     125 allocs/op
-// http.Post BenchmarkName-8   	      19886	     59323 ns/op	    6255 B/op	      69 allocs/op
-func BenchmarkName(b *testing.B) {
+// ensure BenchmarkPaginator-8   	      13323	     85158 ns/op	   42213 B/op	     109 allocs/op
+// ensure json BenchmarkPaginator-12    	   18163	     64132 ns/op	   11122 B/op	     127 allocs/op
+// http.Post BenchmarkPaginator-8   	      19886	     59323 ns/op	    6255 B/op	      69 allocs/op
+func BenchmarkPaginator(b *testing.B) {
 	s := httptest.NewServer(http.HandlerFunc(testPaginatorHandler))
 	var total = 125
 	var page = 4

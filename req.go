@@ -33,7 +33,7 @@ type HttpRequest struct {
 	Client *http.Client
 	//Service host
 	Host string
-	//Http method. GET, POST, PUT etc
+	//Http method. GET, POST, PUT, etc.
 	Method string
 	//Remote endpoint
 	Url string
@@ -58,18 +58,18 @@ type HttpRequest struct {
 
 // Validate request
 func (r HttpRequest) validate() error {
-	e := porterr.New(porterr.PortErrorValidation, "Request is invalid").HTTP(http.StatusBadRequest)
-	// Disable host validation for tests
-	//if r.Host == "" {
-	//	e = e.PushDetail(porterr.PortErrorParam, "host", "Host is not defined")
-	//}
+	var e porterr.IError
 	if r.Method == "" {
+		e = porterr.New(porterr.PortErrorValidation, "Request is invalid").HTTP(http.StatusBadRequest)
 		e = e.PushDetail(porterr.PortErrorParam, "method", "Method is not defined")
 	}
 	if r.Url == "" {
+		if e == nil {
+			e = porterr.New(porterr.PortErrorValidation, "Request is invalid").HTTP(http.StatusBadRequest)
+		}
 		e = e.PushDetail(porterr.PortErrorParam, "url", "Url is not defined")
 	}
-	return e.IfDetails()
+	return e
 }
 
 // Retry strategy
@@ -91,7 +91,7 @@ func canContinueRetry(response *http.Response) bool {
 
 // Response error returns
 // Default method.
-// If you need to override this please override for ResponseErrorStrategy
+// If you need to override this - please override for ResponseErrorStrategy
 func responseError(response *http.Response) error {
 	var e porterr.IError
 	if response.StatusCode >= http.StatusBadRequest {
@@ -125,7 +125,7 @@ func BuildCURL(request HttpRequest) string {
 func initDefault(request *HttpRequest) {
 	//Check http client
 	if request.Client == nil {
-		request.Client = &http.Client{Timeout: time.Second * DefaultTimeout}
+		request.Client = defaultClient
 	}
 	//Check retry strategy
 	if request.RetryStrategy == nil {
@@ -214,7 +214,7 @@ func Ensure(request HttpRequest) (*http.Response, []byte, error) {
 			//Log request
 			logRequest(&request, response.StatusCode, &bodyBytes, delta, logCurl)
 
-			//Check if can retry response
+			//Check if you can retry the response
 			if request.RetryStrategy(response) {
 				//Sleep before next round
 				if request.RetryTimeout.Nanoseconds() > 0 {
@@ -347,9 +347,9 @@ func ParallelPaginatorJsonEnsure[F any, R any](form F, hr HttpRequest) (items []
 		return
 	}
 	var iterator int
-	// count number of elements that must be fetched
+	// count the number of elements that must be fetched
 	var total = meta.Total - meta.Page*meta.Limit
-	// count number of total requests
+	// count the number of total requests
 	var respLen = total / meta.Limit
 	if meta.Total%meta.Limit > 0 {
 		respLen++
