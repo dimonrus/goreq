@@ -3,8 +3,6 @@ package goreq
 import (
 	"encoding/json"
 	"fmt"
-	"github.com/dimonrus/gorest"
-	"github.com/dimonrus/porterr"
 	"io"
 	"log"
 	"net/http"
@@ -14,6 +12,9 @@ import (
 	"sync"
 	"testing"
 	"time"
+
+	"github.com/dimonrus/gorest"
+	"github.com/dimonrus/porterr"
 )
 
 // https://jsonplaceholder.typicode.com/posts

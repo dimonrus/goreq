@@ -4,14 +4,15 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
-	"github.com/dimonrus/gorest"
-	"github.com/dimonrus/porterr"
 	"io"
 	"log"
 	"net/http"
 	"os"
 	"strings"
 	"time"
+
+	"github.com/dimonrus/gorest"
+	"github.com/dimonrus/porterr"
 )
 
 // DefaultTimeout Default request timeout
@@ -343,7 +344,7 @@ func ParallelPaginatorJsonEnsure[F any, R any](form F, hr HttpRequest) (items []
 	if meta.Page == 0 {
 		meta.Page = 1
 	}
-	if meta.Page*meta.Limit > meta.Total {
+	if meta.Page*meta.Limit >= meta.Total {
 		return
 	}
 	var iterator int
